@@ -11,13 +11,17 @@ echo "=========================================="
 echo "         GameMode Lab Runner              "
 echo "=========================================="
 
-# Check Python 3
-if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
+# Check Python 3 (prefer local virtualenv if present)
+if [ -f "$SCRIPT_DIR/.venv/bin/python" ]; then
+    PY_BIN="$SCRIPT_DIR/.venv/bin/python"
+elif command -v python3 &>/dev/null; then
+    PY_BIN="$(command -v python3)"
+elif command -v python &>/dev/null; then
+    PY_BIN="$(command -v python)"
+else
     echo "[-] Python is required but not installed." >&2
     exit 1
 fi
-
-PY_BIN="$(command -v python3 || command -v python)"
 echo "[+] Using Python: $($PY_BIN --version)"
 
 # Check or build frontend if dist is missing

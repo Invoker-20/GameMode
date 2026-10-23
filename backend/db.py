@@ -12,17 +12,22 @@ import os
 import sqlite3
 from typing import Any
 
-DB_PATH = os.environ.get("GAMEMODE_DB_PATH", "gamemode.db")
+def get_db_path(db_path: str | None = None) -> str:
+    """Resolve database path, checking environment variable at runtime if not provided."""
+    if db_path is not None:
+        return db_path
+    return os.environ.get("GAMEMODE_DB_PATH", "gamemode.db")
 
 
-def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
+def get_connection(db_path: str | None = None) -> sqlite3.Connection:
     """Create a new SQLite connection with foreign keys and row factory enabled."""
-    conn = sqlite3.connect(db_path, timeout=10.0)
+    path = get_db_path(db_path)
+    conn = sqlite3.connect(path, timeout=10.0)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def init_db(db_path: str = DB_PATH) -> None:
+def init_db(db_path: str | None = None) -> None:
     """Initialize database tables for write-ahead undo logs and benchmark history."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -53,7 +58,7 @@ def init_db(db_path: str = DB_PATH) -> None:
 
 
 def insert_undo_log(
-    action: str, state: str, undo_data: dict[str, Any], db_path: str = DB_PATH
+    action: str, state: str, undo_data: dict[str, Any], db_path: str | None = None
 ) -> int:
     """Record write-ahead undo data in the database before applying an action."""
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -71,20 +76,33 @@ def insert_undo_log(
         return int(cursor.lastrowid)
 
 
-def update_undo_log_state(
-    log_id: int, new_state: str, db_path: str = DB_PATH
+def update_undo_log(
+    log_id: int, new_state: str, undo_data: dict[str, Any] | None = None, db_path: str | None = None
 ) -> None:
-    """Update state of an undo log entry (e.g. pending -> applied -> reverted)."""
+    """Update state and optionally undo data of an undo log entry."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE undo_log SET state = ? WHERE id = ?;",
-            (new_state, log_id),
-        )
+        if undo_data is not None:
+            cursor.execute(
+                "UPDATE undo_log SET state = ?, undo_json = ? WHERE id = ?;",
+                (new_state, json.dumps(undo_data), log_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE undo_log SET state = ? WHERE id = ?;",
+                (new_state, log_id),
+            )
         conn.commit()
 
 
-def get_unreverted_undo_logs(db_path: str = DB_PATH) -> list[dict[str, Any]]:
+def update_undo_log_state(
+    log_id: int, new_state: str, db_path: str | None = None
+) -> None:
+    """Update state of an undo log entry (e.g. pending -> applied -> reverted)."""
+    update_undo_log(log_id, new_state, db_path=db_path)
+
+
+def get_unreverted_undo_logs(db_path: str | None = None) -> list[dict[str, Any]]:
     """Retrieve all pending or applied actions that require reversal (recovery)."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -109,7 +127,7 @@ def get_unreverted_undo_logs(db_path: str = DB_PATH) -> list[dict[str, Any]]:
         ]
 
 
-def get_latest_action_state(action: str, db_path: str = DB_PATH) -> str | None:
+def get_latest_action_state(action: str, db_path: str | None = None) -> str | None:
     """Get the most recent logged state for a specific action."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -129,7 +147,7 @@ def insert_benchmark(
     label: str,
     mode_enabled: bool,
     params: dict[str, Any],
-    db_path: str = DB_PATH,
+    db_path: str | None = None,
 ) -> int:
     """Record the initiation of a benchmark run."""
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -148,7 +166,7 @@ def insert_benchmark(
 
 
 def update_benchmark_results(
-    bench_id: int, results: dict[str, Any], db_path: str = DB_PATH
+    bench_id: int, results: dict[str, Any], db_path: str | None = None
 ) -> None:
     """Store benchmark completion metrics."""
     results_json = json.dumps(results)
@@ -161,7 +179,7 @@ def update_benchmark_results(
         conn.commit()
 
 
-def get_benchmarks(limit: int = 50, db_path: str = DB_PATH) -> list[dict[str, Any]]:
+def get_benchmarks(limit: int = 50, db_path: str | None = None) -> list[dict[str, Any]]:
     """Retrieve list of benchmark runs in descending order of run time."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -188,7 +206,7 @@ def get_benchmarks(limit: int = 50, db_path: str = DB_PATH) -> list[dict[str, An
         ]
 
 
-def get_benchmark_by_id(bench_id: int, db_path: str = DB_PATH) -> dict[str, Any] | None:
+def get_benchmark_by_id(bench_id: int, db_path: str | None = None) -> dict[str, Any] | None:
     """Retrieve details and metrics of a single benchmark run."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()

@@ -10,6 +10,7 @@ from typing import Any
 from backend.db import (
     get_unreverted_undo_logs,
     insert_undo_log,
+    update_undo_log,
     update_undo_log_state,
 )
 from backend.optimizer.base import Action, is_dry_run, is_root
@@ -120,9 +121,8 @@ class OptimizationManager:
 
                     # Update database with complete undo payload and 'applied' state
                     await asyncio.to_thread(
-                        insert_undo_log, name, "applied", undo_record
+                        update_undo_log, log_id, "applied", undo_record
                     )
-                    await asyncio.to_thread(update_undo_log_state, log_id, "applied")
 
                     self._action_states[name] = "applied"
                     applied_any = True

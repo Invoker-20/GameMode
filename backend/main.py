@@ -180,15 +180,6 @@ async def list_benchmarks(limit: int = 50) -> list[BenchmarkRunItem]:
     return [BenchmarkRunItem(**r) for r in runs]
 
 
-@app.get("/api/benchmarks/{bench_id}", response_model=BenchmarkRunItem)
-async def get_benchmark(bench_id: int) -> BenchmarkRunItem:
-    """Get details and results of a specific benchmark run."""
-    run = await asyncio.to_thread(get_benchmark_by_id, bench_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Benchmark run not found")
-    return BenchmarkRunItem(**run)
-
-
 @app.get("/api/benchmarks/compare", response_model=BenchmarkCompareResponse)
 async def compare_runs(
     a: int = Query(..., description="First benchmark run ID"),
@@ -207,6 +198,15 @@ async def compare_runs(
         run_b=BenchmarkRunItem(**run_b),
         comparison=comparison,
     )
+
+
+@app.get("/api/benchmarks/{bench_id}", response_model=BenchmarkRunItem)
+async def get_benchmark(bench_id: int) -> BenchmarkRunItem:
+    """Get details and results of a specific benchmark run."""
+    run = await asyncio.to_thread(get_benchmark_by_id, bench_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Benchmark run not found")
+    return BenchmarkRunItem(**run)
 
 
 @app.websocket("/ws/metrics")
